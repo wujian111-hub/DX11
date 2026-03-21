@@ -26,10 +26,8 @@ int App::Go()
 
 void App::DoFrame()
 {
-	const float c = sin(timer.Peek()) / 2.0f + 0.5f; 
-	wnd.Gfx().ClearBuffer(c, c, 1.0f);
-	wnd.Gfx().BeginFrame(0.0f, 0.0f, 0.0f);
-	wnd.Gfx().DrawTestTriangle();
+	const float c = sin(timer.Peek()) / 2.0f + 0.5f;
+	wnd.Gfx().BeginFrame(c, c, 1.0f);  // 直接传渐变颜色
+	wnd.Gfx().Hexagon();
 	wnd.Gfx().EndFrame();
-	
 }

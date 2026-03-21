@@ -31,7 +31,7 @@ public:
 	void BeginFrame(float red, float green, float blue);
 	void EndFrame();
 	void ClearBuffer(float red, float green, float blue) noexcept;
-	void DrawTestTriangle();
+	void Hexagon();
 
 private:
 	int width;
