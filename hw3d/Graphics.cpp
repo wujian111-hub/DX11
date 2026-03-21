@@ -4,6 +4,7 @@
 #include <string>
 #include <d3d11.h>
 #include <dxgi.h>
+#include <cmath>
 #include <cassert>
 #include <d3dcompiler.h>
 #include <wrl/client.h> 
@@ -79,7 +80,7 @@ void Graphics::EndFrame()
 	pSwap->Present(1, 0);
 }
 
-void Graphics::Hexagon()
+void Graphics::Hexagon(float angle)
 {
 	struct Vertex
 	{
@@ -96,19 +97,19 @@ void Graphics::Hexagon()
 			unsigned char a;
 		} color;
 	};
-
 	const Vertex vertices[] =
 	{
-		{ 0.0f, 0.5f, 255, 0, 0, 255 },
-		{ 0.5f, -0.5f, 0, 255, 0, 255},
-		{ -0.5f, -0.5f, 0, 0, 255, 255 },
-		{ -0.3f, 0.3f, 255, 0, 255, 255 },
-		{ 0.5f, 0.5f, 255, 0, 255, 255 },
-		{ 0.0f, -0.8f, 0, 255, 255, 255 },
+		{ 0.0f,  0.6f,       255, 0,   0,   255 },
+	    { 0.52f, 0.3f,       0,   255, 0,   255 },
+	    { 0.52f, -0.3f,      0,   0,   255, 255 },
+	    { 0.0f,  -0.6f,      255, 255, 0,   255 },
+	    { -0.52f, -0.3f,     255, 0,   255, 255 },
+	    { -0.52f, 0.3f,      0,   255, 255, 255 },
+		{ 0.0f,  0.0f,       255, 255, 255, 255 },
 	};
-
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
 	D3D11_BUFFER_DESC bd = {};
+
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.CPUAccessFlags = 0u;
@@ -121,10 +122,12 @@ void Graphics::Hexagon()
 
 	const unsigned short indices[] =
 	{
-		0, 1, 2,
-		0, 2, 3,
-		0, 4, 1,
-		2, 1, 5,
+		6, 0, 1,  // 中心-顶点0-顶点1
+		6, 1, 2,  // 中心-顶点1-顶点2
+		6, 2, 3,  // 中心-顶点2-顶点3
+		6, 3, 4,  // 中心-顶点3-顶点4
+		6, 4, 5,  // 中心-顶点4-顶点5
+		6, 5, 0,
 	};
 
 	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
@@ -139,6 +142,33 @@ void Graphics::Hexagon()
 	isd.pSysMem = indices;
 	GFX_THROW_INFO(pDevice->CreateBuffer(&ibd, &isd, &pIndexBuffer));
 
+	struct ConstantBuffer
+	{
+		float transformation[4][4];
+	};
+
+	ConstantBuffer cb = {};
+	cb.transformation[0][0] = std::cos(angle);
+	cb.transformation[0][1] = std::sin(angle);
+	cb.transformation[1][0] = -std::sin(angle);
+	cb.transformation[1][1] = std::cos(angle);
+	cb.transformation[2][2] = 1.0f;
+	cb.transformation[3][3] = 1.0f;
+
+
+	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
+	D3D11_BUFFER_DESC cbd = {};
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.Usage = D3D11_USAGE_DEFAULT;
+	cbd.CPUAccessFlags =0;
+	cbd.MiscFlags = 0u;
+	cbd.ByteWidth = sizeof(ConstantBuffer);
+	cbd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA csd = {};
+	csd.pSysMem = &cb;
+	GFX_THROW_INFO(pDevice->CreateBuffer(&cbd, &csd, &pConstantBuffer));
+
+	pContext->VSSetConstantBuffers(0, 1, pConstantBuffer.GetAddressOf());
 	const UINT stride = sizeof(Vertex);
 	const UINT offset = 0u;
 	pContext->IASetVertexBuffers(0, 1, pVertexBuffer.GetAddressOf(), &stride, &offset);
@@ -168,7 +198,6 @@ void Graphics::Hexagon()
 	pContext->OMSetRenderTargets(1, pTarget.GetAddressOf(), nullptr);
 	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	// 使用窗口实际大小（如果 Graphics 类有 width/height 成员）
 	D3D11_VIEWPORT vp;
 	vp.Width = (float)width;
 	vp.Height = (float)height;

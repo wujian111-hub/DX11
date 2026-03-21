@@ -27,7 +27,7 @@ int App::Go()
 void App::DoFrame()
 {
 	const float c = sin(timer.Peek()) / 2.0f + 0.5f;
-	wnd.Gfx().BeginFrame(c, c, 1.0f);  // 直接传渐变颜色
-	wnd.Gfx().Hexagon();
+	wnd.Gfx().BeginFrame(c, c, 1.0f);
+	wnd.Gfx().Hexagon(timer.Peek());	
 	wnd.Gfx().EndFrame();
 }
