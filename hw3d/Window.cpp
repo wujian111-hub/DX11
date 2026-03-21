@@ -3,6 +3,7 @@
 #include <windows.h>
 #include "resource.h"
 #include <sstream>
+#include "Mouse.h"
 #include "stdafx.h"
 /*#include "ChiliException.h"*/
 #ifndef COLOR_WINDOW
@@ -176,6 +177,12 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 {
 	switch (msg)
 	{
+	case WM_MOUSEMOVE:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnMouseMove(pt.x, pt.y);
+		return 0;
+	}
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		return 0;

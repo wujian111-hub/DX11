@@ -1,5 +1,6 @@
 #include "Window.h"
 #include "App.h" 
+#include "Mouse.h"
 /*#include "WindowsMessageMap.h"
 #include <string>
 
@@ -90,15 +91,15 @@ int CALLBACK WinMain(
     {
         App App;
         return App.Go();
-        Window wnd(640, 480, "My Window");
+        //Window wnd(640, 480, "My Window");
 
-        MSG msg;
-        while (GetMessage(&msg, nullptr, 0, 0) > 0)
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        return (int)msg.wParam;
+        //MSG msg;
+        //while (GetMessage(&msg, nullptr, 0, 0) > 0)
+        //{
+        //    TranslateMessage(&msg);
+         //   DispatchMessage(&msg);
+        //}
+        //return (int)msg.wParam;
     }
     catch (const Window::HrException& e)
     {

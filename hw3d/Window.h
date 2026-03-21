@@ -5,11 +5,13 @@
 #include <string>
 #include <optional>
 #include <memory>
+#include "Mouse.h"
 #include <vector>
 
 class Window
 {
 public:
+	Mouse mouse;
 	class Exception : public std::exception
 	{
 	public:

@@ -8,9 +8,12 @@
 #include <cassert>
 #include <d3dcompiler.h>
 #include <wrl/client.h> 
+#include <DirectXMath.h>
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3DCompiler.lib")
+
+namespace dx = DirectX;
 
 #ifndef GFX_THROW_INFO
 #define GFX_THROW_INFO(hr) \
@@ -80,7 +83,7 @@ void Graphics::EndFrame()
 	pSwap->Present(1, 0);
 }
 
-void Graphics::Hexagon(float angle)
+void Graphics::Frustum(float angle,float x,float y)
 {
 	struct Vertex
 	{
@@ -88,6 +91,7 @@ void Graphics::Hexagon(float angle)
 		{
 			float x;
 			float y;
+			float z;
 		} pos;
 		struct
 		{
@@ -99,13 +103,14 @@ void Graphics::Hexagon(float angle)
 	};
 	const Vertex vertices[] =
 	{
-		{ 0.0f,  0.6f,       255, 0,   0,   255 },
-	    { 0.52f, 0.3f,       0,   255, 0,   255 },
-	    { 0.52f, -0.3f,      0,   0,   255, 255 },
-	    { 0.0f,  -0.6f,      255, 255, 0,   255 },
-	    { -0.52f, -0.3f,     255, 0,   255, 255 },
-	    { -0.52f, 0.3f,      0,   255, 255, 255 },
-		{ 0.0f,  0.0f,       255, 255, 255, 255 },
+		{-1.0f,-1.0f,-1.0f,255,0,0},
+		{1.0f,-1.0f,-1.0f,0,255,0 },
+		{-1.0f,1.0f,-1.0f,0,0,255 },
+		{1.0f,1.0f,-1.0f,255,255,0 },
+		{-1.0f,-1.0f,1.0f,255,0,255 },
+		{1.0f,-1.0f,1.0f,0,255,255 },
+		{-1.0f,1.0f,1.0f,0,0,0 },
+		{1.0f,1.0f,1.0f,255,255,255}
 	};
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
 	D3D11_BUFFER_DESC bd = {};
@@ -122,12 +127,12 @@ void Graphics::Hexagon(float angle)
 
 	const unsigned short indices[] =
 	{
-		6, 0, 1,  // 中心-顶点0-顶点1
-		6, 1, 2,  // 中心-顶点1-顶点2
-		6, 2, 3,  // 中心-顶点2-顶点3
-		6, 3, 4,  // 中心-顶点3-顶点4
-		6, 4, 5,  // 中心-顶点4-顶点5
-		6, 5, 0,
+		0,2,1, 2,3,1,
+		1,3,5, 3,7,5,
+		2,6,3, 3,6,7,
+		4,5,7, 4,7,6,
+		0,4,2, 2,4,6,
+		0,1,4, 1,5,4,
 	};
 
 	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
@@ -144,16 +149,21 @@ void Graphics::Hexagon(float angle)
 
 	struct ConstantBuffer
 	{
-		float transformation[4][4];
+		dx::XMMATRIX transform;
 	};
 
-	ConstantBuffer cb = {};
-	cb.transformation[0][0] = std::cos(angle);
-	cb.transformation[0][1] = std::sin(angle);
-	cb.transformation[1][0] = -std::sin(angle);
-	cb.transformation[1][1] = std::cos(angle);
-	cb.transformation[2][2] = 1.0f;
-	cb.transformation[3][3] = 1.0f;
+	ConstantBuffer cb = 
+	{
+		{
+			dx::XMMatrixTranspose(
+				dx::XMMatrixRotationZ(angle)*
+				dx::XMMatrixRotationX(angle)*
+				dx::XMMatrixScaling(3.0f/4.0f,1.0f,1.0f)*
+				dx::XMMatrixTranslation(x,y,4.0f)*
+				dx::XMMatrixPerspectiveLH(1.0f,3.0f/4.0f,0.5f,10.0f)
+				)
+		}
+	};
 
 
 	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
@@ -188,8 +198,8 @@ void Graphics::Hexagon(float angle)
 	wrl::ComPtr<ID3D11InputLayout> pInputLayout;
 	const D3D11_INPUT_ELEMENT_DESC ied[] =
 	{
-		{ "Position", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(Vertex, pos), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "Color", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, offsetof(Vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "Position", 0, DXGI_FORMAT_R32G32B32_FLOAT,0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "Color", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12u, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	GFX_THROW_INFO(pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pBlob->GetBufferPointer(), pBlob->GetBufferSize(), &pInputLayout));
