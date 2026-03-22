@@ -5,7 +5,7 @@
 #include <sstream>
 #include "Mouse.h"
 #include "stdafx.h"
-/*#include "ChiliException.h"*/
+/*#include "Exception.h"*/
 #ifndef COLOR_WINDOW
 #define COLOR_WINDOW 5
 #endif

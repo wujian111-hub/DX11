@@ -27,7 +27,7 @@
     <ClCompile Include="Window.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="ChiliException.cpp">
+    <ClCompile Include="Exception.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Graphics.cpp">
@@ -39,7 +39,7 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="ChiliTimer.cpp">
+    <ClCompile Include="Timer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Mouse.cpp">
@@ -50,13 +50,13 @@
     <ClInclude Include="WindowsMessageMap.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="ChiliWin.h">
+    <ClInclude Include="Win.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Window.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="ChiliException.h">
+    <ClInclude Include="Exception.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="resource.h">
@@ -71,7 +71,7 @@
     <ClInclude Include="stdafx.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="ChiliTimer.h">
+    <ClInclude Include="Timer.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="client.h">

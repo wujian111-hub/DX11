@@ -152,8 +152,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="APP.cpp" />
-    <ClCompile Include="ChiliException.cpp" />
-    <ClCompile Include="ChiliTimer.cpp" />
+    <ClCompile Include="Exception.cpp" />
+    <ClCompile Include="Timer.cpp" />
     <ClCompile Include="Graphics.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Use</PrecompiledHeader>
@@ -173,9 +173,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="APP.h" />
-    <ClInclude Include="ChiliException.h" />
-    <ClInclude Include="ChiliTimer.h" />
-    <ClInclude Include="ChiliWin.h" />
+    <ClInclude Include="Exception.h" />
+    <ClInclude Include="Timer.h" />
+    <ClInclude Include="Win.h" />
     <ClInclude Include="client.h" />
     <ClInclude Include="Graphics.h" />
     <ClInclude Include="Mouse.h" />

@@ -1,6 +1,6 @@
 #pragma once
-#include "ChiliWin.h"
-#include "ChiliException.h"
+#include "Win.h"
+#include "Exception.h"
 #include "Graphics.h"
 #include <string>
 #include <optional>

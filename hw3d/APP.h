@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include "Window.h"
-#include "ChiliTimer.h"
+#include "Timer.h"
 
 class App
 {
@@ -12,5 +12,5 @@ public:
 private:
 	void DoFrame();
 	Window wnd;
-	ChiliTimer timer;
+	Timer timer;
 };
