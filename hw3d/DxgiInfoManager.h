@@ -1,6 +1,6 @@
 #pragma once
-#include "ChiliWin.h"
-#include "ChiliWRL.h"
+#include "Win.h"
+#include "WRL.h"
 #include <vector>
 #include <dxgidebug.h>
 #include <string>

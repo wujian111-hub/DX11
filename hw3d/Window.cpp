@@ -3,9 +3,12 @@
 #include <windows.h>
 #include "resource.h"
 #include <sstream>
+#include <optional> 
 #include "Mouse.h"
 #include "stdafx.h"
-/*#include "ChiliException.h"*/
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+/*#include "Exception.h"*/
 #ifndef COLOR_WINDOW
 #define COLOR_WINDOW 5
 #endif
@@ -13,6 +16,9 @@
 #define IDI_APPLICATION 32512
 #endif
 
+// 静态成员初始化
+bool Window::s_imguiInitialized = false;
+bool Window::s_isClosing = false;  // 添加这一行
 
 Window::WindowClass Window::WindowClass::wndClass;
 
@@ -57,7 +63,6 @@ Window::Window(int width, int height, const char* name)
 	width(width),
 	height(height)
 {
-	OutputDebugStringA("Window constructor started\n");
 	// 转换窗口标题为宽字符串
 	std::wstring wname;
 	if (name != nullptr)
@@ -102,12 +107,26 @@ Window::Window(int width, int height, const char* name)
 
 	// 创建图形对象
 	pGfx = std::make_unique<Graphics>(hWnd, width, height);
-	OutputDebugStringA("Window constructor started\n");
+	OutputDebugStringA("Window constructor completed\n");
 }
 
 Window::~Window()
 {
-	DestroyWindow(hWnd);
+	// 标记窗口正在关闭
+	s_isClosing = true;
+
+	// 先销毁 Graphics
+	if (pGfx)
+	{
+		pGfx.reset();
+	}
+
+	// 再销毁窗口
+	if (hWnd)
+	{
+		DestroyWindow(hWnd);
+		hWnd = nullptr;
+	}
 }
 
 void Window::SetTitle(const std::string& title)
@@ -175,6 +194,21 @@ LRESULT CALLBACK Window::HandleMsgThunk(HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept
 {
+	// 如果窗口正在关闭，直接返回默认处理
+	if (s_isClosing)
+	{
+		return DefWindowProcW(hWnd, msg, wParam, lParam);
+	}
+
+	// 只有在 ImGui 初始化完成后才处理消息
+	if (s_imguiInitialized)
+	{
+		if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+		{
+			return true;
+		}
+	}
+
 	switch (msg)
 	{
 	case WM_MOUSEMOVE:
@@ -183,17 +217,40 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 		mouse.OnMouseMove(pt.x, pt.y);
 		return 0;
 	}
+	case WM_LBUTTONDOWN:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnLeftPressed(pt.x, pt.y);
+		return 0;
+	}
+	case WM_RBUTTONDOWN:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnRightPressed(pt.x, pt.y);
+		return 0;
+	}
+	case WM_RBUTTONUP:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnRightReleased(pt.x, pt.y);
+		return 0;
+	}
+	case WM_MOUSEWHEEL:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+		mouse.OnWheelDelta(pt.x, pt.y, delta);
+		return 0;
+	}
 	case WM_CLOSE:
 		PostQuitMessage(0);
 		return 0;
-
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
 	}
 	return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
-
 // Exception 实现
 Window::Exception::Exception(int line, const char* file) noexcept
 	:
@@ -220,6 +277,39 @@ std::string Window::Exception::GetOriginString() const noexcept
 	std::ostringstream oss;
 	oss << "[File] " << file << "\n[Line] " << line;
 	return oss.str();
+}
+
+// Window Exception Stuff
+std::string Window::Exception::TranslateErrorCode(HRESULT hr) noexcept
+{
+	char* pMsgBuf = nullptr;
+	DWORD nMsgLen = FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		nullptr,
+		hr,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPSTR)&pMsgBuf,
+		0,
+		nullptr
+	);
+
+	if (nMsgLen == 0)
+	{
+		return "Unknown error code";
+	}
+
+	std::string msg(pMsgBuf, nMsgLen);
+	LocalFree(pMsgBuf);
+
+	// 去掉末尾的换行符
+	while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r'))
+	{
+		msg.pop_back();
+	}
+
+	return msg;
 }
 
 // HrException 实现

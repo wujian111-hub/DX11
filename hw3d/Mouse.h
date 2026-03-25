@@ -29,8 +29,8 @@ public:
 		Type type;
 		bool leftIsPressed;
 		bool rightIsPressed;
-		int x;
-		int y;
+		int x=0;
+		int y=0;
 	public:
 		Event(Type type, const Mouse& parent) noexcept
 			:

@@ -1,6 +1,6 @@
 #pragma once
-#include "ChiliWin.h"
-#include "ChiliException.h"
+#include "Win.h"
+#include "Exception.h"
 #include "Graphics.h"
 #include <string>
 #include <optional>
@@ -11,10 +11,18 @@
 class Window
 {
 public:
+	// 静态标志
+	static bool IsImGuiInitialized() { return s_imguiInitialized; }
+	static void SetImGuiInitialized(bool initialized) { s_imguiInitialized = initialized; }
+	static bool IsClosing() { return s_isClosing; }
+	static void SetClosing(bool closing) { s_isClosing = closing; }
+
 	Mouse mouse;
+
 	class Exception : public std::exception
 	{
 	public:
+		static std::string TranslateErrorCode(HRESULT hr) noexcept;
 		Exception(int line, const char* file) noexcept;
 		const char* what() const noexcept override;
 		virtual const char* GetType() const noexcept;
@@ -47,6 +55,9 @@ public:
 	};
 
 private:
+	static bool s_imguiInitialized;  // 添加静态成员
+	static bool s_isClosing;         // 添加静态成员
+
 	class WindowClass
 	{
 	public:
@@ -78,13 +89,11 @@ private:
 	static LRESULT CALLBACK HandleMsgThunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
 	LRESULT HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
 
-public:
-
 private:
 	int width;
 	int height;
 	HWND hWnd;
 	std::string title;
 	bool isRunning;
-	std::unique_ptr<Graphics>pGfx;
+	std::unique_ptr<Graphics> pGfx;
 };

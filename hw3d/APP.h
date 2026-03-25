@@ -1,16 +1,18 @@
 #pragma once
 #include <string>
 #include "Window.h"
-#include "ChiliTimer.h"
+#include "Timer.h"
 
 class App
 {
 public:
 	App();
-	int Go();
 	~App();
+	int Go();
 private:
 	void DoFrame();
+private:
 	Window wnd;
-	ChiliTimer timer;
+	Timer timer;
+	bool m_isRunning = true;  // 运行标志
 };
