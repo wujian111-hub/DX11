@@ -159,8 +159,7 @@ Surface::Surface(DirectX::ScratchImage scratch) noexcept
 
 // surface exception stuff
 Surface::Exception::Exception(int line, const char* file, std::string note, std::optional<HRESULT> hr) noexcept
-	:
-	note("[Note] " + note)
+	: ::Exception(line, file), note("[Note] " + note)
 {
 	if (hr)
 	{
@@ -169,6 +168,7 @@ Surface::Exception::Exception(int line, const char* file, std::string note, std:
 }
 
 Surface::Exception::Exception(int line, const char* file, std::string filename, std::string note_in, std::optional<HRESULT> hr) noexcept
+	: ::Exception(line, file)
 {
 	using namespace std::string_literals;
 	note = "[File] "s + filename + "\n"s + "[Note] "s + note_in;

@@ -13,6 +13,10 @@
 #include <DirectXMath.h>
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
+#include "Vertex.h"
+#include "Geometry.h"
+#include <vector>
+#include <cstdint>
 
 // 链接 DirectX 库
 #pragma comment(lib, "d3d11.lib")
@@ -57,7 +61,7 @@ Graphics::Graphics(HWND hWnd, int width, int height)
 	);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// 3. 创建渲染目标视图
@@ -65,13 +69,13 @@ Graphics::Graphics(HWND hWnd, int width, int height)
 	hr = pSwap->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	hr = pDevice->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &pTarget);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// 深度模板状态
@@ -83,7 +87,7 @@ Graphics::Graphics(HWND hWnd, int width, int height)
 	hr = pDevice->CreateDepthStencilState(&dsDesc, &pDSState);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 	pContext->OMSetDepthStencilState(pDSState.Get(), 1u);
 
@@ -103,7 +107,7 @@ Graphics::Graphics(HWND hWnd, int width, int height)
 	hr = pDevice->CreateTexture2D(&depthDesc, nullptr, &pDepthStencil);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// 5. 创建深度模板视图
@@ -115,11 +119,142 @@ Graphics::Graphics(HWND hWnd, int width, int height)
 	hr = pDevice->CreateDepthStencilView(pDepthStencil.Get(), &dsvDesc, &pDSV);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// 6. 将渲染目标和深度缓冲区绑定到输出合并阶段
 	pContext->OMSetRenderTargets(1, pTarget.GetAddressOf(), pDSV.Get());
+
+	// ============================================================================
+	// Init: sphere mesh + shaders + constant buffer + procedural texture + sampler
+	// ============================================================================
+	{
+		// Sphere mesh (Geometry::CreateSphere)
+		auto mesh = Geometry::CreateSphere<VertexPosNormalTex, DWORD>(1.0f, 30u, 40u);
+		sphereIndexCount = (UINT)mesh.indexVec.size();
+
+		D3D11_BUFFER_DESC vbd = {};
+		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vbd.Usage = D3D11_USAGE_IMMUTABLE;
+		vbd.ByteWidth = (UINT)mesh.vertexVec.size() * sizeof(VertexPosNormalTex);
+		vbd.StructureByteStride = sizeof(VertexPosNormalTex);
+		D3D11_SUBRESOURCE_DATA vsd = {};
+		vsd.pSysMem = mesh.vertexVec.data();
+		hr = pDevice->CreateBuffer(&vbd, &vsd, &pSphereVB);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		D3D11_BUFFER_DESC ibd = {};
+		ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		ibd.Usage = D3D11_USAGE_IMMUTABLE;
+		ibd.ByteWidth = (UINT)mesh.indexVec.size() * sizeof(DWORD);
+		ibd.StructureByteStride = sizeof(DWORD);
+		D3D11_SUBRESOURCE_DATA isd = {};
+		isd.pSysMem = mesh.indexVec.data();
+		hr = pDevice->CreateBuffer(&ibd, &isd, &pSphereIB);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		// --- Shader ---
+		wrl::ComPtr<ID3DBlob> vsBlob;
+		hr = D3DReadFileToBlob(L"Sphere_VS.cso", &vsBlob);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+		hr = pDevice->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &pSphereVS);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		hr = pDevice->CreateInputLayout(
+			VertexPosNormalTex::inputLayout,
+			(UINT)ARRAYSIZE(VertexPosNormalTex::inputLayout),
+			vsBlob->GetBufferPointer(),
+			vsBlob->GetBufferSize(),
+			&pSphereLayout
+		);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		wrl::ComPtr<ID3DBlob> psBlob;
+		hr = D3DReadFileToBlob(L"Sphere_PS.cso", &psBlob);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+		hr = pDevice->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &pSpherePS);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		// --- 常量缓冲 ---
+		D3D11_BUFFER_DESC cbd = {};
+		cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		cbd.Usage = D3D11_USAGE_DYNAMIC;
+		cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		cbd.ByteWidth = sizeof(SphereCBufData);
+		hr = pDevice->CreateBuffer(&cbd, nullptr, &pSphereCBuf);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		// Procedural texture (no external file dependency)
+		const UINT texW = 512u;
+		const UINT texH = 512u;
+		std::vector<std::uint32_t> pixels;
+		pixels.resize((size_t)texW * texH);
+
+		for (UINT y = 0u; y < texH; y++)
+		{
+			for (UINT x = 0u; x < texW; x++)
+			{
+				const float u = (x + 0.5f) / texW;
+				const float v = (y + 0.5f) / texH;
+				const float cx = u - 0.5f;
+				const float cy = v - 0.5f;
+				const float r = sqrtf(cx * cx + cy * cy);
+				const float a = atan2f(cy, cx);
+
+				const float stripe = 0.5f + 0.5f * cosf(18.0f * a + 24.0f * r);
+				const float ring = 0.5f + 0.5f * cosf(32.0f * r);
+				const float t = 0.55f * stripe + 0.45f * ring;
+
+				const float baseR = 0.10f + 0.90f * t;
+				const float baseG = 0.20f + 0.70f * (1.0f - fabsf(2.0f * t - 1.0f));
+				const float baseB = 0.35f + 0.65f * (1.0f - t);
+
+				const UINT8 R = (UINT8)(baseR * 255.0f);
+				const UINT8 G = (UINT8)(baseG * 255.0f);
+				const UINT8 B = (UINT8)(baseB * 255.0f);
+				const UINT8 A = 255u;
+
+				// DXGI_FORMAT_R8G8B8A8_UNORM
+				pixels[(size_t)y * texW + x] = (std::uint32_t)(R | (G << 8) | (B << 16) | (A << 24));
+			}
+		}
+
+		D3D11_TEXTURE2D_DESC td = {};
+		td.Width = texW;
+		td.Height = texH;
+		td.MipLevels = 1u;
+		td.ArraySize = 1u;
+		td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		td.SampleDesc.Count = 1u;
+		td.Usage = D3D11_USAGE_IMMUTABLE;
+		td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+		D3D11_SUBRESOURCE_DATA tsd = {};
+		tsd.pSysMem = pixels.data();
+		tsd.SysMemPitch = texW * sizeof(std::uint32_t);
+
+		wrl::ComPtr<ID3D11Texture2D> tex;
+		hr = pDevice->CreateTexture2D(&td, &tsd, &tex);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
+		srvd.Format = td.Format;
+		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvd.Texture2D.MostDetailedMip = 0u;
+		srvd.Texture2D.MipLevels = 1u;
+		hr = pDevice->CreateShaderResourceView(tex.Get(), &srvd, &pSphereTex);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+
+		// --- 采样器 ---
+		D3D11_SAMPLER_DESC samp = {};
+		samp.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		samp.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp.MaxLOD = D3D11_FLOAT32_MAX;
+		hr = pDevice->CreateSamplerState(&samp, &pSphereSampler);
+		if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+	}
 }
 
 // ============================================================================
@@ -148,6 +283,100 @@ void Graphics::BeginFrame(float red, float green, float blue)
 void Graphics::EndFrame()
 {
 	pSwap->Present(1, 0);
+}
+
+// ============================================================================
+// 绘制：带旋转纹理的球体
+// ============================================================================
+void Graphics::DrawTexturedSphere(float dt)
+{
+	using namespace DirectX;
+
+	// 更新角度
+	sphereWorldAngle += dt * 0.8f;
+	sphereTexAngle += dt * XM_PI * 0.8f;
+	if (sphereWorldAngle > XM_2PI) sphereWorldAngle -= XM_2PI;
+	if (sphereTexAngle > XM_2PI) sphereTexAngle -= XM_2PI;
+
+	// 计算矩阵
+	const XMMATRIX world =
+		XMMatrixRotationY(sphereWorldAngle) *
+		XMMatrixRotationX(0.35f * sphereWorldAngle);
+
+	const XMMATRIX view = XMMatrixLookAtLH(
+		XMVectorSet(0.0f, 0.0f, -4.0f, 0.0f),
+		XMVectorZero(),
+		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+	);
+
+	const float aspect = (float)width / (float)height;
+	const XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, aspect, 0.1f, 50.0f);
+
+	const float c = cosf(sphereTexAngle);
+	const float s = sinf(sphereTexAngle);
+	const XMMATRIX texRot = XMMATRIX(
+		c,  s, 0, 0,
+		-s, c, 0, 0,
+		0,  0, 1, 0,
+		0,  0, 0, 1
+	);
+
+	SphereCBufData cb = {};
+	cb.world = XMMatrixTranspose(world);
+	cb.view = XMMatrixTranspose(view);
+	cb.proj = XMMatrixTranspose(proj);
+	cb.texRot = XMMatrixTranspose(texRot);
+
+	// 更新常量缓冲
+	D3D11_MAPPED_SUBRESOURCE msr;
+	HRESULT hr = pContext->Map(pSphereCBuf.Get(), 0u, D3D11_MAP_WRITE_DISCARD, 0u, &msr);
+	if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+	memcpy(msr.pData, &cb, sizeof(cb));
+	pContext->Unmap(pSphereCBuf.Get(), 0u);
+
+	// 绑定渲染目标（防止 ImGui 改写 OM 状态后遗漏）
+	pContext->OMSetRenderTargets(1, pTarget.GetAddressOf(), pDSV.Get());
+
+	// IA
+	const UINT stride = sizeof(VertexPosNormalTex);
+	const UINT offset = 0u;
+	pContext->IASetVertexBuffers(0u, 1u, pSphereVB.GetAddressOf(), &stride, &offset);
+	pContext->IASetIndexBuffer(pSphereIB.Get(), DXGI_FORMAT_R32_UINT, 0u);
+	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pContext->IASetInputLayout(pSphereLayout.Get());
+
+	// VS/PS
+	pContext->VSSetShader(pSphereVS.Get(), nullptr, 0u);
+	pContext->VSSetConstantBuffers(0u, 1u, pSphereCBuf.GetAddressOf());
+
+	pContext->PSSetShader(pSpherePS.Get(), nullptr, 0u);
+	pContext->PSSetShaderResources(0u, 1u, pSphereTex.GetAddressOf());
+	pContext->PSSetSamplers(0u, 1u, pSphereSampler.GetAddressOf());
+
+	// 视口
+	D3D11_VIEWPORT vp;
+	vp.Width = (float)width;
+	vp.Height = (float)height;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0.0f;
+	vp.TopLeftY = 0.0f;
+	pContext->RSSetViewports(1u, &vp);
+
+	// Rasterizer: 保持和你原先 Frustum 一样不剔除，避免因为 winding 导致看不到
+	D3D11_RASTERIZER_DESC rasterDesc = {};
+	rasterDesc.FillMode = D3D11_FILL_SOLID;
+	rasterDesc.CullMode = D3D11_CULL_NONE;
+	rasterDesc.FrontCounterClockwise = FALSE;
+	rasterDesc.DepthClipEnable = TRUE;
+
+	wrl::ComPtr<ID3D11RasterizerState> rs;
+	hr = pDevice->CreateRasterizerState(&rasterDesc, &rs);
+	if (FAILED(hr)) { throw GraphicsHrException(__LINE__, __FILE__, hr); }
+	pContext->RSSetState(rs.Get());
+
+	// Draw
+	pContext->DrawIndexed(sphereIndexCount, 0, 0);
 }
 
 // ============================================================================
@@ -218,7 +447,7 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	HRESULT hr = pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// 创建索引缓冲区
@@ -235,7 +464,7 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	hr = pDevice->CreateBuffer(&ibd, &isd, &pIndexBuffer);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	// ========== 变换矩阵（根据投影类型选择） ==========
@@ -283,7 +512,7 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	hr = pDevice->CreateBuffer(&cbd, &csd, &pConstantBuffer);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	pContext->VSSetConstantBuffers(0, 1, pConstantBuffer.GetAddressOf());
@@ -300,13 +529,13 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	hr = D3DReadFileToBlob(L"VertexShader.cso", &pVSBlob);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	hr = pDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &pVertexShader);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0);
 
@@ -321,7 +550,7 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	hr = pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &pInputLayout);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 	pContext->IASetInputLayout(pInputLayout.Get());
 
@@ -331,13 +560,13 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 	hr = D3DReadFileToBlob(L"PixelShader.cso", &pPSBlob);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 
 	hr = pDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pPixelShader);
 	if (FAILED(hr))
 	{
-		throw Graphics::HrException(__LINE__, __FILE__, hr);
+		throw GraphicsHrException(__LINE__, __FILE__, hr);
 	}
 	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0);
 
@@ -369,50 +598,50 @@ void Graphics::Frustum(float angle, float x, float y, float z,
 // Exception 实现
 // ============================================================================
 // Exception 实现
-Graphics::Exception::Exception(int line, const char* file, const std::string& note) noexcept
+GraphicsException::GraphicsException(int line, const char* file, const std::string& note) noexcept
 	: std::runtime_error(note), line(line), file(file)
 {
 }
 
-const char* Graphics::Exception::what() const noexcept
+const char* GraphicsException::what() const noexcept
 {
 	return std::runtime_error::what();
 }
 
-const char* Graphics::Exception::GetType() const noexcept
+const char* GraphicsException::GetType() const noexcept
 {
 	return "Graphics Exception";
 }
 
-int Graphics::Exception::GetLine() const noexcept
+int GraphicsException::GetLine() const noexcept
 {
 	return line;
 }
 
-const std::string& Graphics::Exception::GetFile() const noexcept
+const std::string& GraphicsException::GetFile() const noexcept
 {
 	return file;
 }
 
-std::string Graphics::Exception::GetOriginString() const noexcept
+std::string GraphicsException::GetOriginString() const noexcept
 {
 	std::ostringstream oss;
 	oss << "[File] " << file << "\n[Line] " << line;
 	return oss.str();
 }
 
-// HrException 实现
-Graphics::HrException::HrException(int line, const char* file, HRESULT hr) noexcept
-	: Exception(line, file, "HRESULT Error"), hr(hr)
+// GraphicsHrException 实现
+GraphicsHrException::GraphicsHrException(int line, const char* file, HRESULT hr) noexcept
+	: GraphicsException(line, file, "HRESULT Error"), hr(hr)
 {
 }
 
-Graphics::HrException::HrException(int line, const char* file, HRESULT hr, const std::string& info) noexcept
-	: Exception(line, file, "HRESULT Error"), hr(hr), info(info)
+GraphicsHrException::GraphicsHrException(int line, const char* file, HRESULT hr, const std::string& info) noexcept
+	: GraphicsException(line, file, "HRESULT Error"), hr(hr), info(info)
 {
 }
 
-const char* Graphics::HrException::what() const noexcept
+const char* GraphicsHrException::what() const noexcept
 {
 	std::string fullMsg = GetType();
 	fullMsg += ": ";
@@ -427,44 +656,44 @@ const char* Graphics::HrException::what() const noexcept
 	return cached.c_str();
 }
 
-const char* Graphics::HrException::GetType() const noexcept
+const char* GraphicsHrException::GetType() const noexcept
 {
 	return "Graphics HRESULT Exception";
 }
 
-HRESULT Graphics::HrException::GetErrorCode() const noexcept
+HRESULT GraphicsHrException::GetErrorCode() const noexcept
 {
 	return hr;
 }
 
-std::string Graphics::HrException::GetErrorString() const noexcept
+std::string GraphicsHrException::GetErrorString() const noexcept
 {
 	return std::system_category().message(hr);
 }
 
-std::string Graphics::HrException::GetErrorInfo() const noexcept
+std::string GraphicsHrException::GetErrorInfo() const noexcept
 {
 	return info;
 }
 
-// DeviceRemovedException 实现
-Graphics::DeviceRemovedException::DeviceRemovedException(int line, const char* file, HRESULT hr, const std::string& info) noexcept
-	: HrException(line, file, hr, info)
+// GraphicsDeviceRemovedException 实现
+GraphicsDeviceRemovedException::GraphicsDeviceRemovedException(int line, const char* file, HRESULT hr, const std::string& info) noexcept
+	: GraphicsHrException(line, file, hr, info)
 {
 }
 
-const char* Graphics::DeviceRemovedException::GetType() const noexcept
+const char* GraphicsDeviceRemovedException::GetType() const noexcept
 {
 	return "Graphics Device Removed Exception";
 }
 
-// InfoException 实现
-Graphics::InfoException::InfoException(int line, const char* file, const std::string& info) noexcept
-	: Exception(line, file, "Info Error"), info(info)
+// GraphicsInfoException 实现
+GraphicsInfoException::GraphicsInfoException(int line, const char* file, const std::string& info) noexcept
+	: GraphicsException(line, file, "Info Error"), info(info)
 {
 }
 
-const char* Graphics::InfoException::what() const noexcept
+const char* GraphicsInfoException::what() const noexcept
 {
 	std::string fullMsg = GetType();
 	fullMsg += ": ";
@@ -474,12 +703,12 @@ const char* Graphics::InfoException::what() const noexcept
 	return cached.c_str();
 }
 
-const char* Graphics::InfoException::GetType() const noexcept
+const char* GraphicsInfoException::GetType() const noexcept
 {
 	return "Graphics Info Exception";
 }
 
-const std::string& Graphics::InfoException::GetInfo() const noexcept
+const std::string& GraphicsInfoException::GetInfo() const noexcept
 {
 	return info;
 }

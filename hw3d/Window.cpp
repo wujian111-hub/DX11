@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "Window.h"
 #include <string>
 #include <windows.h>
@@ -5,7 +6,6 @@
 #include <sstream>
 #include <optional> 
 #include "Mouse.h"
-#include "stdafx.h"
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 /*#include "Exception.h"*/
@@ -84,7 +84,7 @@ Window::Window(int width, int height, const char* name)
 	wr.bottom = height + wr.top;
 	if (AdjustWindowRect(&wr, WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU, FALSE) == 0)
 	{
-		throw HrException(__LINE__, __FILE__, GetLastError());
+		throw Window::HrException(__LINE__, __FILE__, GetLastError());
 	}
 
 	// 创建窗口
@@ -99,7 +99,7 @@ Window::Window(int width, int height, const char* name)
 
 	if (hWnd == nullptr)
 	{
-		throw HrException(__LINE__, __FILE__, GetLastError());
+		throw Window::HrException(__LINE__, __FILE__, GetLastError());
 	}
 
 	// 显示窗口

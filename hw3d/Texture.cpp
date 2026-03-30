@@ -1,5 +1,6 @@
 #include "Texture.h"
 #include "Surface.h"
+#include "Graphics.h"
 #include "GraphicsThrowMacros.h"
 #include "BindableCodex.h"
 #include <cassert>
@@ -40,7 +41,7 @@ namespace Bind
 		GFX_THROW_INFO(GetDevice(gfx)->CreateTexture2D(&textureDesc,&sd, &pTexture));
 		if (FAILED(hr))
 		{
-			throw Graphics::HrException(__LINE__, __FILE__, hr);
+			throw GraphicsHrException(__LINE__, __FILE__, hr);
 		}
 
 		// write image data into top mip level
@@ -58,7 +59,7 @@ namespace Bind
 		GFX_THROW_INFO(GetDevice(gfx)->CreateShaderResourceView(pTexture.Get(), &srvDesc, &pTextureView));
 		if (FAILED(hr))
 		{
-			throw Graphics::HrException(__LINE__, __FILE__, hr);
+			throw GraphicsHrException(__LINE__, __FILE__, hr);
 		}
 
 		// generate the mip chain using the gpu rendering pipeline

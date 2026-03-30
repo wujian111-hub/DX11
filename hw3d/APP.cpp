@@ -1,6 +1,5 @@
-
-#include "App.h"
 #include "stdafx.h"
+#include "App.h"
 #include "Mouse.h"
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
@@ -88,6 +87,9 @@ int App::Go()
 
 void App::DoFrame()
 {
+	// dt in seconds
+	const float dt = timer.Mark();
+
 	// 开始 ImGui 帧
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
@@ -215,14 +217,8 @@ void App::DoFrame()
 	// ========== 绘制 3D 场景 ==========
 	wnd.Gfx().BeginFrame(clearColor.x, clearColor.y, clearColor.z);
 
-	wnd.Gfx().Frustum(
-		rotationAngle * 3.14159f / 180.0f,
-		posX, posY, posZ,
-		scaleTop, scaleBottom, scaleHeight,
-		topColor.x, topColor.y, topColor.z,
-		bottomColor.x, bottomColor.y, bottomColor.z,
-		sideColor.x, sideColor.y, sideColor.z
-	);
+	// Draw textured sphere, UV rotation via constant buffer matrix
+	wnd.Gfx().DrawTexturedSphere(dt);
 
 	// 渲染 ImGui
 	ImGui::Render();
