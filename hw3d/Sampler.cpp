@@ -5,35 +5,39 @@
 
 namespace Bind
 {
-	Sampler::Sampler(Graphics& gfx, Type type, bool reflect, UINT slot)
-		: type(type), reflect(reflect), slot(slot)
-	{
-		INFOMAN(gfx);
-		D3D11_SAMPLER_DESC samplerDesc = {};
-	
-		switch (type)
-		{
-		case Type::Anisotropic:
-			samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-			samplerDesc.MaxAnisotropy = D3D11_REQ_MAXANISOTROPY;
-			break;
-		case Type::Bilinear:
-			samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-			samplerDesc.MaxAnisotropy = 1;
-			break;
-		case Type::Point:
-			samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-			samplerDesc.MaxAnisotropy = 1;
-			break;
-		}
-	
-		samplerDesc.AddressU = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.AddressV = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.AddressW = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
-		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	
-		GFX_THROW_INFO(gfx.GetDevice()->CreateSamplerState(&samplerDesc, &pSampler));
-	}
+    Sampler::Sampler(Graphics& gfx, Type type, bool reflect, UINT slot)
+        : type(type), reflect(reflect), slot(slot)
+    {
+        D3D11_SAMPLER_DESC samplerDesc = {};
+
+        switch (type)
+        {
+        case Type::Anisotropic:
+            samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+            samplerDesc.MaxAnisotropy = D3D11_REQ_MAXANISOTROPY;
+            break;
+        case Type::Bilinear:
+            samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+            samplerDesc.MaxAnisotropy = 1;
+            break;
+        case Type::Point:
+            samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+            samplerDesc.MaxAnisotropy = 1;
+            break;
+        }
+
+        samplerDesc.AddressU = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerDesc.AddressV = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerDesc.AddressW = reflect ? D3D11_TEXTURE_ADDRESS_MIRROR : D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+        // 显式处理HRESULT
+        HRESULT hr = gfx.GetDevice()->CreateSamplerState(&samplerDesc, &pSampler);
+        if (FAILED(hr))
+        {
+            throw GraphicsHrException(__LINE__, __FILE__, hr);
+        }
+    }
 
 	void Sampler::Bind(Graphics& gfx) noexcept
 	{
