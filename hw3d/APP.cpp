@@ -8,42 +8,18 @@
 App::App()
 	:
 	wnd(1280, 720, "My Window"),
-	m_isRunning(true)  // 初始化运行标志
+	m_isRunning(true)
 {
 	OutputDebugStringA("App constructor started\n");
 
-	// 确保 Graphics 已经创建
+	// 确保 Graphics 已经创建（ImGui 已经在 Graphics 构造函数中初始化）
 	if (!wnd.Gfx().GetDevice() || !wnd.Gfx().GetContext())
 	{
 		OutputDebugStringA("Graphics device/context is null!\n");
 		return;
 	}
 
-	// 初始化 ImGui
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-
-	ImGuiIO& io = ImGui::GetIO();
-	(void)io;
-	ImGui::StyleColorsDark();
-
-	// 初始化 Win32 后端
-	if (!ImGui_ImplWin32_Init(wnd.GetHWND()))
-	{
-		OutputDebugStringA("ImGui_ImplWin32_Init failed!\n");
-		return;
-	}
-
-	// 初始化 DX11 后端
-	if (!ImGui_ImplDX11_Init(wnd.Gfx().GetDevice(), wnd.Gfx().GetContext()))
-	{
-		OutputDebugStringA("ImGui_ImplDX11_Init failed!\n");
-		ImGui_ImplWin32_Shutdown();
-		ImGui::DestroyContext();
-		return;
-	}
-
-	// 设置 ImGui 已初始化标志（只调用一次）
+	// 设置 ImGui 已初始化标志
 	Window::SetImGuiInitialized(true);
 
 	OutputDebugStringA("App constructor completed\n");
@@ -55,19 +31,6 @@ App::~App()
 
 	// 先清除标志，防止窗口消息再调用 ImGui
 	Window::SetImGuiInitialized(false);
-
-	// 清理 ImGui 后端
-	ImGui_ImplDX11_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-
-	// 销毁 ImGui 上下文
-	if (ImGui::GetCurrentContext() != nullptr)
-	{
-		ImGui::DestroyContext();
-	}
-
-	// 强制设置上下文为空
-	ImGui::SetCurrentContext(nullptr);
 
 	OutputDebugStringA("App destructor completed\n");
 }
@@ -90,11 +53,6 @@ void App::DoFrame()
 	// dt in seconds
 	const float dt = timer.Mark();
 
-	// 开始 ImGui 帧
-	ImGui_ImplDX11_NewFrame();
-	ImGui_ImplWin32_NewFrame();
-	ImGui::NewFrame();
-
 	// ========== 声明所有控制变量 ==========
 	static float rotationAngle = 0.0f;
 	static bool autoRotate = true;
@@ -109,9 +67,9 @@ void App::DoFrame()
 	static ImVec4 clearColor = ImVec4(0.2f, 0.3f, 0.5f, 1.0f);
 
 	// 投影类型变量
-	static int projectionIndex = 0;  // 0:透视投影, 1:正交投影
+	static int projectionIndex = 0;
 	const char* projectionItems[] = { "Perspective", "Orthographic" };
-	static float orthoViewSize = 5.0f;  // 正交投影视野大小
+	static float orthoViewSize = 5.0f;
 
 	// 自动旋转
 	if (autoRotate)
@@ -119,6 +77,18 @@ void App::DoFrame()
 		rotationAngle += rotationSpeed * 0.5f;
 		if (rotationAngle > 360.0f) rotationAngle -= 360.0f;
 	}
+
+	// ========== 第一步：绘制 3D 场景 ==========
+	wnd.Gfx().BeginFrame(clearColor.x, clearColor.y, clearColor.z);
+	// 传入 ImGui 控制的参数（角度需要转弧度）
+	wnd.Gfx().DrawTexturedSphere(dt,
+		rotationAngle * 3.14159f / 180.0f,  // 角度转弧度
+		posX, posY, posZ);
+
+	// ========== 第二步：开始 ImGui 帧 ==========
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
 
 	// ========== 控制面板 ==========
 	ImGui::Begin("Control Panel");
@@ -136,7 +106,6 @@ void App::DoFrame()
 			wnd.Gfx().SetProjectionType(Graphics::ProjectionType::Orthographic);
 	}
 
-	// 正交投影视野大小滑块（仅在正交投影时显示）
 	if (projectionIndex == 1)
 	{
 		if (ImGui::SliderFloat("Ortho Size", &orthoViewSize, 2.0f, 15.0f))
@@ -198,7 +167,7 @@ void App::DoFrame()
 	ImGui::End();
 
 	// ========== ImGui Demo 窗口 ==========
-	static bool show_demo_window = true;
+	static bool show_demo_window = false;  // 默认关闭，需要可以改为 true
 	if (show_demo_window)
 	{
 		ImGui::ShowDemoWindow(&show_demo_window);
@@ -214,16 +183,13 @@ void App::DoFrame()
 	}
 	ImGui::End();
 
-	// ========== 绘制 3D 场景 ==========
-	wnd.Gfx().BeginFrame(clearColor.x, clearColor.y, clearColor.z);
-
-	// Draw textured sphere, UV rotation via constant buffer matrix
-	wnd.Gfx().DrawTexturedSphere(dt);
-
-	// 渲染 ImGui
+	// ========== 第三步：渲染 ImGui ==========
 	ImGui::Render();
+
+	// 禁用深度测试，让 ImGui 显示在最前面
+	wnd.Gfx().BeginImGuiRender();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-	// 结束 3D 场景帧
+	// ========== 第四步：结束帧 ==========
 	wnd.Gfx().EndFrame();
 }
