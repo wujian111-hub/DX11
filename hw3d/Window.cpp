@@ -107,6 +107,8 @@ Window::Window(int width, int height, const char* name)
 
 	// 创建图形对象
 	pGfx = std::make_unique<Graphics>(hWnd, width, height);
+	// ImGui 已经在 Graphics 构造函数中初始化完成，标记为已初始化
+	s_imguiInitialized = true;
 	OutputDebugStringA("Window constructor completed\n");
 }
 
@@ -251,6 +253,7 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 	}
 	return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
+
 // Exception 实现
 Window::Exception::Exception(int line, const char* file) noexcept
 	:

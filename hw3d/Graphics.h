@@ -9,7 +9,7 @@
 #include "DxgiInfoManager.h"
 #include <DirectXMath.h>
 
-// 修改宏定义，使用新的异常类名
+// 宏定义
 #ifndef GFX_THROW_INFO
 #define GFX_THROW_INFO(hrcall) \
 { \
@@ -40,15 +40,8 @@
 
 namespace wrl = Microsoft::WRL;
 
-namespace Bind
-{
-    class Bindable;
-    class RenderTarget;
-}
-
 // ==================== 异常类定义 ====================
 
-// 基础异常类
 class GraphicsException : public std::runtime_error
 {
 public:
@@ -64,7 +57,6 @@ private:
     std::string file;
 };
 
-// HRESULT 异常类
 class GraphicsHrException : public GraphicsException
 {
 public:
@@ -81,7 +73,6 @@ private:
     std::string info;
 };
 
-// 设备移除异常类
 class GraphicsDeviceRemovedException : public GraphicsHrException
 {
 public:
@@ -89,7 +80,6 @@ public:
     const char* GetType() const noexcept override;
 };
 
-// 信息异常类
 class GraphicsInfoException : public GraphicsException
 {
 public:
@@ -106,48 +96,33 @@ private:
 
 class Graphics
 {
-    friend class GraphicsResource;
-
-public:
-    // 投影类型枚举
-    enum class ProjectionType
-    {
-        Perspective,   // 透视投影
-        Orthographic   // 正交投影
-    };
+  friend class GraphicsResource;
 
 public:
     Graphics(HWND hWnd, int width, int height);
     Graphics(const Graphics&) = delete;
-    ~Graphics() = default;
+    ~Graphics();
 
     void BeginFrame(float red, float green, float blue);
     void EndFrame();
     void ClearBuffer(float red, float green, float blue) noexcept;
+    void BeginImGuiRender();
 
-    // Frustum 函数声明（带所有控制参数）
-    void Frustum(float angle, float x, float y, float z,
-        float scaleTop, float scaleBottom, float scaleHeight,
-        float topR, float topG, float topB,
-        float bottomR, float bottomG, float bottomB,
-        float sideR, float sideG, float sideB);
-
-    // 投影类型控制函数
-    void SetProjectionType(ProjectionType type) noexcept { m_projectionType = type; }
-    ProjectionType GetProjectionType() const noexcept { return m_projectionType; }
-
-    // 正交投影视野大小控制函数
-    void SetOrthoViewSize(float size) noexcept { m_orthoViewSize = size; }
-    float GetOrthoViewSize() const noexcept { return m_orthoViewSize; }
-
-    // 设备访问函数
+    // 设备访问
     ID3D11Device* GetDevice() const noexcept { return pDevice.Get(); }
     ID3D11DeviceContext* GetContext() const noexcept { return pContext.Get(); }
 
-    // 绘制：带旋转纹理的球体（dt 为秒）
-    void DrawTexturedSphere(float dt);
+    // 绘制纯色球体
+    void DrawSolidSphere(float dt,
+        float rotationAngle = 0.0f,
+        float posX = 0.0f, float posY = 0.0f, float posZ = 0.0f);
 
-    // InfoManager 访问函数
+    // 光源/材质控制
+    void SetLightDir(float x, float y, float z);
+    void SetMaterialDiffuse(float r, float g, float b);
+    void SetMaterialSpecular(float r, float g, float b);
+    void SetMaterialShininess(float shininess);
+
     DxgiInfoManager& GetInfoManager() noexcept { return infoManager; }
 
 private:
@@ -161,32 +136,41 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> pDSV;
     DxgiInfoManager infoManager;
 
-    // 投影相关成员变量
-    ProjectionType m_projectionType = ProjectionType::Perspective;
-    float m_orthoViewSize = 5.0f;  // 正交投影视野大小，默认5.0
-
-private:
-    // Sphere resources (runtime)
+    // 球体网格
     Microsoft::WRL::ComPtr<ID3D11Buffer> pSphereVB;
     Microsoft::WRL::ComPtr<ID3D11Buffer> pSphereIB;
     UINT sphereIndexCount = 0u;
 
-    Microsoft::WRL::ComPtr<ID3D11VertexShader> pSphereVS;
-    Microsoft::WRL::ComPtr<ID3D11PixelShader> pSpherePS;
-    Microsoft::WRL::ComPtr<ID3D11InputLayout> pSphereLayout;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> pSphereCBuf;
-
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pSphereTex;
-    Microsoft::WRL::ComPtr<ID3D11SamplerState> pSphereSampler;
+    // 着色器
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> pSolidVS;
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> pSolidPS;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> pSolidLayout;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> pSolidCBuf;
 
     float sphereWorldAngle = 0.0f;
-    float sphereTexAngle = 0.0f;
 
-    struct SphereCBufData
+    struct SolidCBufData
     {
         DirectX::XMMATRIX world;
         DirectX::XMMATRIX view;
         DirectX::XMMATRIX proj;
-        DirectX::XMMATRIX texRot;
+        DirectX::XMFLOAT3 ambientLight;
+        float pad1;
+        DirectX::XMFLOAT3 lightDir;
+        float pad2;
+        DirectX::XMFLOAT3 lightColor;
+        float pad3;
+        DirectX::XMFLOAT3 cameraPos;
+        float pad4;
+        DirectX::XMFLOAT3 materialAmbient;
+        float pad5;
+        DirectX::XMFLOAT3 materialDiffuse;
+        float pad6;
+        DirectX::XMFLOAT3 materialSpecular;
+        float pad7;
+        float materialShininess;
+        float pad8[3];
     };
+
+    SolidCBufData cbData;
 };

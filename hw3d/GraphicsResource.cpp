@@ -1,4 +1,5 @@
 #include "GraphicsResource.h"
+#include "Graphics.h"
 #include <stdexcept>
 
 

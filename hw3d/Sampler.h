@@ -1,4 +1,8 @@
 #pragma once
+#include <d3d11.h>
+#include <memory>
+#include <string>
+#include "Graphics.h"
 #include "Bindable.h"
 
 namespace Bind
