@@ -8,6 +8,7 @@
 #include <string>
 #include "DxgiInfoManager.h"
 #include <DirectXMath.h>
+#include "Skybox.h"
 
 // 宏定义
 #ifndef GFX_THROW_INFO
@@ -96,7 +97,7 @@ private:
 
 class Graphics
 {
-  friend class GraphicsResource;
+    friend class GraphicsResource;
 
 public:
     Graphics(HWND hWnd, int width, int height);
@@ -106,22 +107,15 @@ public:
     void BeginFrame(float red, float green, float blue);
     void EndFrame();
     void ClearBuffer(float red, float green, float blue) noexcept;
-    void BeginImGuiRender();
 
     // 设备访问
     ID3D11Device* GetDevice() const noexcept { return pDevice.Get(); }
     ID3D11DeviceContext* GetContext() const noexcept { return pContext.Get(); }
 
-    // 绘制纯色球体
-    void DrawSolidSphere(float dt,
-        float rotationAngle = 0.0f,
-        float posX = 0.0f, float posY = 0.0f, float posZ = 0.0f);
-
-    // 光源/材质控制
-    void SetLightDir(float x, float y, float z);
-    void SetMaterialDiffuse(float r, float g, float b);
-    void SetMaterialSpecular(float r, float g, float b);
-    void SetMaterialShininess(float shininess);
+    // 天空盒控制
+    void InitializeSkybox();
+    void LoadSkyboxTexture(const std::wstring& texturePath);
+    void DrawSkybox();
 
     DxgiInfoManager& GetInfoManager() noexcept { return infoManager; }
 
@@ -136,41 +130,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> pDSV;
     DxgiInfoManager infoManager;
 
-    // 球体网格
-    Microsoft::WRL::ComPtr<ID3D11Buffer> pSphereVB;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> pSphereIB;
-    UINT sphereIndexCount = 0u;
-
-    // 着色器
-    Microsoft::WRL::ComPtr<ID3D11VertexShader> pSolidVS;
-    Microsoft::WRL::ComPtr<ID3D11PixelShader> pSolidPS;
-    Microsoft::WRL::ComPtr<ID3D11InputLayout> pSolidLayout;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> pSolidCBuf;
-
-    float sphereWorldAngle = 0.0f;
-
-    struct SolidCBufData
-    {
-        DirectX::XMMATRIX world;
-        DirectX::XMMATRIX view;
-        DirectX::XMMATRIX proj;
-        DirectX::XMFLOAT3 ambientLight;
-        float pad1;
-        DirectX::XMFLOAT3 lightDir;
-        float pad2;
-        DirectX::XMFLOAT3 lightColor;
-        float pad3;
-        DirectX::XMFLOAT3 cameraPos;
-        float pad4;
-        DirectX::XMFLOAT3 materialAmbient;
-        float pad5;
-        DirectX::XMFLOAT3 materialDiffuse;
-        float pad6;
-        DirectX::XMFLOAT3 materialSpecular;
-        float pad7;
-        float materialShininess;
-        float pad8[3];
-    };
-
-    SolidCBufData cbData;
+    // 天空盒
+    Skybox skybox;
 };

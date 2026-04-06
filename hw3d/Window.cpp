@@ -6,9 +6,7 @@
 #include <sstream>
 #include <optional> 
 #include "Mouse.h"
-#include "imgui.h"
-#include "imgui_impl_win32.h"
-/*#include "Exception.h"*/
+
 #ifndef COLOR_WINDOW
 #define COLOR_WINDOW 5
 #endif
@@ -17,8 +15,7 @@
 #endif
 
 // 静态成员初始化
-bool Window::s_imguiInitialized = false;
-bool Window::s_isClosing = false;  // 添加这一行
+bool Window::s_isClosing = false;
 
 Window::WindowClass Window::WindowClass::wndClass;
 
@@ -107,8 +104,6 @@ Window::Window(int width, int height, const char* name)
 
 	// 创建图形对象
 	pGfx = std::make_unique<Graphics>(hWnd, width, height);
-	// ImGui 已经在 Graphics 构造函数中初始化完成，标记为已初始化
-	s_imguiInitialized = true;
 	OutputDebugStringA("Window constructor completed\n");
 }
 
@@ -200,15 +195,6 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 	if (s_isClosing)
 	{
 		return DefWindowProcW(hWnd, msg, wParam, lParam);
-	}
-
-	// 只有在 ImGui 初始化完成后才处理消息
-	if (s_imguiInitialized)
-	{
-		if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
-		{
-			return true;
-		}
 	}
 
 	switch (msg)

@@ -12,8 +12,6 @@ class Window
 {
 public:
 	// 静态标志
-	static bool IsImGuiInitialized() { return s_imguiInitialized; }
-	static void SetImGuiInitialized(bool initialized) { s_imguiInitialized = initialized; }
 	static bool IsClosing() { return s_isClosing; }
 	static void SetClosing(bool closing) { s_isClosing = closing; }
 
@@ -55,8 +53,7 @@ public:
 	};
 
 private:
-	static bool s_imguiInitialized;  // 添加静态成员
-	static bool s_isClosing;         // 添加静态成员
+	static bool s_isClosing;  // 窗口是否正在关闭
 
 	class WindowClass
 	{
