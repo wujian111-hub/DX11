@@ -30,10 +30,9 @@ Window::WindowClass::WindowClass() noexcept
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
 	wc.hInstance = GetInstance();
-	// 使用系统默认图标，避免加载失败
 	wc.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(IDI_APPLICATION));
 	wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-	wc.hbrBackground = nullptr;  // 关键：设置为 nullptr，让 DirectX 完全控制背景
+	wc.hbrBackground = nullptr;
 	wc.lpszMenuName = nullptr;
 	wc.lpszClassName = GetName();
 	wc.hIconSm = LoadIconW(nullptr, MAKEINTRESOURCEW(IDI_APPLICATION));
@@ -60,7 +59,6 @@ Window::Window(int width, int height, const char* name)
 	width(width),
 	height(height)
 {
-	// 转换窗口标题为宽字符串
 	std::wstring wname;
 	if (name != nullptr)
 	{
@@ -73,7 +71,6 @@ Window::Window(int width, int height, const char* name)
 	}
 	isRunning = true;
 
-	// 计算窗口大小
 	RECT wr;
 	wr.left = 100;
 	wr.right = width + wr.left;
@@ -84,7 +81,6 @@ Window::Window(int width, int height, const char* name)
 		throw Window::HrException(__LINE__, __FILE__, GetLastError());
 	}
 
-	// 创建窗口
 	hWnd = CreateWindowExW(
 		0,
 		WindowClass::GetName(),
@@ -99,26 +95,18 @@ Window::Window(int width, int height, const char* name)
 		throw Window::HrException(__LINE__, __FILE__, GetLastError());
 	}
 
-	// 显示窗口
 	ShowWindow(hWnd, SW_SHOWDEFAULT);
-
-	// 创建图形对象
 	pGfx = std::make_unique<Graphics>(hWnd, width, height);
 	OutputDebugStringA("Window constructor completed\n");
 }
 
 Window::~Window()
 {
-	// 标记窗口正在关闭
 	s_isClosing = true;
-
-	// 先销毁 Graphics
 	if (pGfx)
 	{
 		pGfx.reset();
 	}
-
-	// 再销毁窗口
 	if (hWnd)
 	{
 		DestroyWindow(hWnd);
@@ -191,7 +179,6 @@ LRESULT CALLBACK Window::HandleMsgThunk(HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept
 {
-	// 如果窗口正在关闭，直接返回默认处理
 	if (s_isClosing)
 	{
 		return DefWindowProcW(hWnd, msg, wParam, lParam);
@@ -203,6 +190,22 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 	{
 		const POINTS pt = MAKEPOINTS(lParam);
 		mouse.OnMouseMove(pt.x, pt.y);
+
+		// 计算鼠标移动增量
+		float x = (float)pt.x;
+		float y = (float)pt.y;
+
+		if (m_firstMouse)
+		{
+			m_lastMouseX = x;
+			m_lastMouseY = y;
+			m_firstMouse = false;
+		}
+
+		m_mouseDeltaX = x - m_lastMouseX;
+		m_mouseDeltaY = y - m_lastMouseY;
+		m_lastMouseX = x;
+		m_lastMouseY = y;
 		return 0;
 	}
 	case WM_LBUTTONDOWN:
@@ -242,9 +245,7 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 
 // Exception 实现
 Window::Exception::Exception(int line, const char* file) noexcept
-	:
-	line(line),
-	file(file)
+	: line(line), file(file)
 {
 }
 
@@ -268,7 +269,6 @@ std::string Window::Exception::GetOriginString() const noexcept
 	return oss.str();
 }
 
-// Window Exception Stuff
 std::string Window::Exception::TranslateErrorCode(HRESULT hr) noexcept
 {
 	char* pMsgBuf = nullptr;
@@ -292,20 +292,16 @@ std::string Window::Exception::TranslateErrorCode(HRESULT hr) noexcept
 	std::string msg(pMsgBuf, nMsgLen);
 	LocalFree(pMsgBuf);
 
-	// 去掉末尾的换行符
 	while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r'))
 	{
 		msg.pop_back();
 	}
-
 	return msg;
 }
 
 // HrException 实现
 Window::HrException::HrException(int line, const char* file, HRESULT hr) noexcept
-	:
-	Exception(line, file),
-	hr(hr)
+	: Exception(line, file), hr(hr)
 {
 }
 
@@ -363,7 +359,6 @@ std::string Window::HrException::TranslateErrorCode(HRESULT hr) noexcept
 	{
 		errorString.pop_back();
 	}
-
 	return errorString;
 }
 
@@ -371,4 +366,23 @@ std::string Window::HrException::TranslateErrorCode(HRESULT hr) noexcept
 const char* Window::NoGfxException::GetType() const noexcept
 {
 	return "Window NoGfxException";
+}
+
+// ============================================================================
+// 鼠标增量方法实现
+// ============================================================================
+float Window::GetMouseDeltaX() const
+{
+	return m_mouseDeltaX;
+}
+
+float Window::GetMouseDeltaY() const
+{
+	return m_mouseDeltaY;
+}
+
+void Window::ResetMouseDelta()
+{
+	m_mouseDeltaX = 0.0f;
+	m_mouseDeltaY = 0.0f;
 }

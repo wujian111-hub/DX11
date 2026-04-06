@@ -11,6 +11,11 @@
 class Window
 {
 public:
+	// 鼠标输入
+	float GetMouseDeltaX() const;
+	float GetMouseDeltaY() const;
+	void ResetMouseDelta();
+
 	// 静态标志
 	static bool IsClosing() { return s_isClosing; }
 	static void SetClosing(bool closing) { s_isClosing = closing; }
@@ -54,6 +59,12 @@ public:
 
 private:
 	static bool s_isClosing;  // 窗口是否正在关闭
+
+	float m_lastMouseX = 0.0f;
+	float m_lastMouseY = 0.0f;
+	float m_mouseDeltaX = 0.0f;
+	float m_mouseDeltaY = 0.0f;
+	bool m_firstMouse = true;
 
 	class WindowClass
 	{

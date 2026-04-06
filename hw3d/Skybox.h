@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -25,9 +24,9 @@ public:
         const std::wstring& psPath = L"Skybox_PS.cso");
 
     void LoadTexture(ID3D11Device* pDevice, const std::wstring& texturePath);
-    void SetViewMatrix(DirectX::FXMMATRIX view);
-    void SetProjMatrix(DirectX::FXMMATRIX proj);
-    void Draw(ID3D11DeviceContext* pContext);
+
+    // 绘制天空盒（需要传入 yaw/pitch 相机角度）
+    void Draw(ID3D11DeviceContext* pContext, float yaw = 0.0f, float pitch = 0.0f);
 
 private:
     void CreateCubeMesh(ID3D11Device* pDevice);
@@ -41,6 +40,4 @@ private:
     wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
     wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
     UINT indexCount = 0;
-    DirectX::XMFLOAT4X4 viewMatrix = {};
-    DirectX::XMFLOAT4X4 projMatrix = {};
 };

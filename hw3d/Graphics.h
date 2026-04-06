@@ -100,6 +100,13 @@ class Graphics
     friend class GraphicsResource;
 
 public:
+
+    // 相机控制
+    void SetCameraRotation(float yaw, float pitch);
+    void GetCameraRotation(float& yaw, float& pitch) const;
+    void RotateCamera(float deltaYaw, float deltaPitch);
+
+
     Graphics(HWND hWnd, int width, int height);
     Graphics(const Graphics&) = delete;
     ~Graphics();
@@ -119,9 +126,14 @@ public:
 
     DxgiInfoManager& GetInfoManager() noexcept { return infoManager; }
 
+
+
 private:
     int width;
     int height;
+
+    float m_cameraYaw = 0.0f;
+    float m_cameraPitch = 0.0f;
 
     Microsoft::WRL::ComPtr<ID3D11Device> pDevice;
     Microsoft::WRL::ComPtr<IDXGISwapChain> pSwap;

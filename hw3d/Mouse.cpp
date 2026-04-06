@@ -43,6 +43,12 @@ bool Mouse::RightIsPressed() const noexcept
 	return rightIsPressed;
 }
 
+bool Mouse::IsRightPressed() const noexcept
+{
+	return rightIsPressed;
+}
+
+
 std::optional<Mouse::Event> Mouse::Read() noexcept
 {
 	if (buffer.size() > 0u)

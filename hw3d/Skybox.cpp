@@ -68,45 +68,19 @@ void Skybox::LoadTexture(ID3D11Device* pDevice, const std::wstring& texturePath)
     if (FAILED(hr)) throw GraphicsHrException(__LINE__, __FILE__, hr);
 }
 
-void Skybox::SetViewMatrix(DirectX::FXMMATRIX view)
-{
-    DirectX::XMStoreFloat4x4(&viewMatrix, view);
-}
-
-void Skybox::SetProjMatrix(DirectX::FXMMATRIX proj)
-{
-    DirectX::XMStoreFloat4x4(&projMatrix, proj);
-}
-
-
-void Skybox::Draw(ID3D11DeviceContext* pContext)
+void Skybox::Draw(ID3D11DeviceContext* pContext, float yaw, float pitch)
 {
     OutputDebugStringA("Skybox::Draw - START\n");
 
     ID3D11Device* pDevice = nullptr;
     pContext->GetDevice(&pDevice);
 
-    // 顶点着色器：带简单旋转
-    const char* vsSource =
-        "cbuffer CBuf : register(b0) { matrix world; }"
-        "struct VSInput { float4 pos : POSITION; };"
-        "struct VSOutput { float4 pos : SV_POSITION; float3 texCoord : TEXCOORD0; };"
-        "VSOutput main(VSInput input) {"
-        "    VSOutput output;"
-        "    float4 worldPos = mul(input.pos, world);"
-        "    output.pos = worldPos;"
-        "    output.texCoord = -input.pos.xyz;"
-        "    return output;"
-        "}";
-
+    // 从文件加载顶点着色器
     wrl::ComPtr<ID3DBlob> pVSBlob;
-    wrl::ComPtr<ID3DBlob> pErrorBlob;
-    HRESULT hr = D3DCompile(vsSource, strlen(vsSource), nullptr, nullptr, nullptr,
-        "main", "vs_5_0", 0, 0, &pVSBlob, &pErrorBlob);
-
+    HRESULT hr = D3DReadFileToBlob(L"Skybox_VS.cso", &pVSBlob);
     if (FAILED(hr))
     {
-        OutputDebugStringA((char*)pErrorBlob->GetBufferPointer());
+        OutputDebugStringA("Failed to load Skybox_VS.cso\n");
         return;
     }
 
@@ -121,29 +95,42 @@ void Skybox::Draw(ID3D11DeviceContext* pContext)
     pDevice->CreateInputLayout(layoutDesc, 1, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &pTempLayout);
     pContext->IASetInputLayout(pTempLayout.Get());
 
-    const char* psSource =
-        "TextureCube gTex : register(t0);"
-        "SamplerState gSam : register(s0);"
-        "struct PSInput { float4 posH : SV_POSITION; float3 texCoord : TEXCOORD0; };"
-        "float4 main(PSInput input) : SV_TARGET {"
-        "    return gTex.Sample(gSam, input.texCoord);"
-        "}";
-
     wrl::ComPtr<ID3DBlob> pPSBlob;
-    D3DCompile(psSource, strlen(psSource), nullptr, nullptr, nullptr,
-        "main", "ps_5_0", 0, 0, &pPSBlob, &pErrorBlob);
+    hr = D3DReadFileToBlob(L"Skybox_PS.cso", &pPSBlob);
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to load Skybox_PS.cso\n");
+        return;
+    }
 
     wrl::ComPtr<ID3D11PixelShader> pTempPS;
     pDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pTempPS);
     pContext->PSSetShader(pTempPS.Get(), nullptr, 0);
 
-    // ========== 设置旋转矩阵 ==========
-    struct CBData { DirectX::XMMATRIX world; };
+    // 设置视图和投影矩阵
+    struct CBData { DirectX::XMMATRIX view; DirectX::XMMATRIX proj; };
     CBData cb;
 
-    static float angle = 0.0f;
-    angle += 0.01f;
-    cb.world = DirectX::XMMatrixTranspose(DirectX::XMMatrixRotationY(angle));
+    // 根据 yaw 和 pitch 计算相机方向
+    using namespace DirectX;
+
+    XMVECTOR eye = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+    // 计算前向方向
+    XMVECTOR forward = XMVectorSet(
+        sin(yaw) * cos(pitch),
+        sin(pitch),
+        cos(yaw) * cos(pitch),
+        0.0f
+    );
+
+    XMVECTOR at = XMVectorAdd(eye, forward);
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    float aspect = 1280.0f / 720.0f;
+
+    cb.view = XMMatrixTranspose(XMMatrixLookAtLH(eye, at, up));
+    cb.proj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(XM_PIDIV2, aspect, 0.1f, 100.0f));
 
     D3D11_BUFFER_DESC cbd = {};
     cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -159,7 +146,6 @@ void Skybox::Draw(ID3D11DeviceContext* pContext)
     pContext->PSSetSamplers(0, 1, pSamplerState.GetAddressOf());
     pContext->OMSetDepthStencilState(nullptr, 0);
 
-    // 双面渲染
     D3D11_RASTERIZER_DESC rasterDesc = {};
     rasterDesc.FillMode = D3D11_FILL_SOLID;
     rasterDesc.CullMode = D3D11_CULL_NONE;
@@ -179,6 +165,7 @@ void Skybox::Draw(ID3D11DeviceContext* pContext)
 
     OutputDebugStringA("Skybox::Draw - END\n");
 }
+
 
 void Skybox::CreateCubeMesh(ID3D11Device* pDevice)
 {

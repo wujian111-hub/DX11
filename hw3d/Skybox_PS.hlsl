@@ -1,5 +1,5 @@
-TextureCube skyboxTex : register(t0);
-SamplerState samLinear : register(s0);
+TextureCube gTex : register(t0);
+SamplerState gSam : register(s0);
 
 struct PSInput
 {
@@ -7,7 +7,7 @@ struct PSInput
     float3 texCoord : TEXCOORD0;
 };
 
-float4 main(PSInput input) : SV_target
+float4 main(PSInput input) : SV_TARGET
 {
-    return skyboxTex.Sample(samLinear, input.texCoord);
+    return gTex.Sample(gSam, input.texCoord);
 }
